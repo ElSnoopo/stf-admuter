@@ -8,3 +8,6 @@ Known major bugs:
 - sporadic interaction with keystrokes during the muting process
 - hiccups when started while an already blacklisted ad is playing
   workaround: quickly activate any window except Spotify after starting the ad muter
+
+
+Snoop's blacklist: https://www.dropbox.com/s/y9lx178ks3qmsue/werbetitel.txt?dl=0
