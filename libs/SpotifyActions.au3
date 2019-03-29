@@ -1,103 +1,70 @@
-func _mute()
-	local $winTitle, $subStrPos, $i = 0, $j = 1
+func _mute($aClass, $sVersion, $wTitle, $mute)
+	local	$i = 0, _																																; running variable
+				$loopLimit, _																														; number of loops, depending on version mode
+				$noTrayTip = 1, _																												; tray tip indicator, so the user won't be spammed with "hey, listen"
+				$muteCmnd, _																														; command that's sent to Spotify
+				$muted = 0																															; return/success value
+
 	;TrayTip("", "Mute eingeleitet", 1)
+
+	Switch $sVersion																															; version-dependent settings
+	Case 0
+		$loopLimit = 20																															; Spotify 0.9 doesn't have a shortcut for mute, you can only de- or
+		if $mute then $muteCmnd = "^{DOWN}" Else $muteCmnd = "^{UP}"								; increase the program's volume by pressing Ctrl-Down/Up
+	Case 1
+		$loopLimit = 1																															; in Spotify 1.0, you mute and unmute with Ctrl-Shift-Down - way easier
+		$muteCmnd = "^+{DOWN}"
+	EndSwitch
 
 	sleep(50)
 
-	while $i < 10
-		if _noKeyDown() Then
-			ControlSend($appName, "", "", "^{DOWN 2}")
-			Send("{ALTUP}")
-			Send("{CTRLUP}")
+	while $i < $loopLimit																													; mute loop for both versions for the sake of simplicity
+		if _noKeyDown() Then																												; old bug - keystrokes disturb the muter, so no key must be pressed
+			ControlSend($aClass, "", "", $muteCmnd)																		; muteCmnd is directly sent to the Spotify window
 			inc($i)
 		else
-			sleep(250)
-			if $j then
+			if $noTrayTip then																												; tray tip to stop typing is only displayed once
 				TrayTip("", "Bitte kurz nichts drücken", 2)
-				$j = 0
+				$noTrayTip = 0
 			EndIf
+			sleep(500)																																; we'll give the user half a second to react and try again
 		EndIf
 	WEnd
 
 	;TrayTip("", "Mute abgeschlossen", 1)												;debug traytip
 
-	$winTitle = _getUnifiedTitle($appName)
-	sleep(100)
-	$subStrPos = StringInStr(_getUnifiedTitle($appName), "Spotify ", 0)
-
-	if $subStrPos = 0 then
-		send("{MEDIA_PLAY_PAUSE}")
-		;TrayTip("", "Wiedergabe fortgesetzt", 1)											;debug traytip
-	Else
-		If $subStrPos = 1 Then
-			;TrayTip("", "Wiedergabe ist ordnungsgemaess weitergelaufen", 1)				;debug traytip
-		else
-			;TrayTip("", "Substring an Position " & $subStrPos & " gefunden.", 1)			;debug traytip
-		EndIf
+	if ((not $sVersion) And (WinGetTitle($aClass) <> $wTitle)) Then								; Spotify 0.9 pauses the playback when the player's volume is decreased quickly,
+		ControlSend($aClass, "", "", "{SPACE}")																			; so we detect this behavior and re-start the playback when this happens
 	EndIf
 
 	sleep(50)
-	;ControlSend($appName, "", "", "^{RIGHT}")
-	$muted = True
+	;ControlSend($aClass, "", "", "^{RIGHT}")
+	$muted = 1
 
-	Send("{ALTUP}")
+	Send("{ALTUP}")																																; bug prevention - sometimes Alt and Ctrl get "stuck"
 	Send("{CTRLUP}")
+	Send("{SHIFTUP}")																															; Shift is now also used (since v0.3), so we include it here
 
-	return _getUnifiedTitle($appName)
+	return $muted																																	; everything okay? good.
 EndFunc
 
 
-; ------------------------------------------------------------------------------
-
+; -------------- legacy function, not used anymore -----------------------------
+#cs
 func _getWindowTitle($spotifyWindow)
 	local $title
 
 	$title = WinGetTitle($spotifyWindow)
 
 EndFunc
+#ce
 
-
-; ------------------------------------------------------------------------------
-
-func _resumeState()
-	local $i = 0, $j = 1
-	;TrayTip("", "Lautstärkewiederherstellung eingeleitet", 1)							;debug traytip
-
-	sleep(100)
-
-	while $i < 10
-		if _noKeyDown() Then
-			ControlSend($appName, "", "", "^{UP 2}")
-			Send("{ALTUP}")
-			Send("{CTRLUP}")
-			inc($i)
-		else
-			sleep(250)
-			if $j then
-				TrayTip("", "Bitte kurz nichts drücken", 2)
-				$j = 0
-			EndIf
-		EndIf
-	WEnd
-
-	sleep(100)
-
-	Send("{ALTUP}")
-	Send("{CTRLUP}")
-
-	;TrayTip("", "Lautstärkewiederherstellung abgeschlossen", 1)							debug traytip
-
-	$muted = False
-	return WinGetTitle($appName)
-EndFunc
-
-
-; ------------------------------------------------------------------------------
-
-func _playPause()
+; -------------- legacy function, not used anymore -----------------------------
+#cs
+func _playPause($aClass)
 	;ControlSend("Spotify", "", "", "{SPACE}")
 
-	$debugOldTitle = _getUnifiedTitle($appName)
+	$debugOldTitle = _getUnifiedTitle($aClass)
 
 	if (Send("{MEDIA_PLAY_PAUSE}") And (_getUnifiedTitle("[CLASS:SpotifyMainWindow]") <> $debugOldTitle)) then
 		TrayTip("", "Leertaste gesendet", 1)
@@ -107,3 +74,4 @@ func _playPause()
 
 	sleep(50)
 EndFunc
+#ce
