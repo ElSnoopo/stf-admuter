@@ -1,27 +1,31 @@
 #cs ----------------------------------------------------------------------------
 #   Muter-specific utilities
 #   currently included:
-#   - keyboard state checker
 #   - keydown checker
 #   - information menu
 #   - muter quit function
 #ce ----------------------------------------------------------------------------
 
+#include <Misc.au3>																															; includes _IsPressed()
+
 func _noKeyDown()
-	local $i, $noKeyDown = True
+	local $i, $noKeyDown = True, _
+				$hDLL = DllOpen("user32.dll")
 
 	for $i = 0 to 255
-		if _IsPressed(hex($i)) Then
+		if _IsPressed(hex($i), $hDLL) Then
 			$noKeyDown = False
 		EndIf
 	Next
+
+	DllClose($hDLL)
 
 	return $noKeyDown
 EndFunc
 
 
-; ------------------------------------------------------------------------------
-
+; ---------------------- legacy function, replaced by _IsPressed ---------------
+#cs
 Func _WinAPI_GetKeyboardState($iFlag)	;Function by UEZ@autoitscript.com
 	Local $aDllRet, $lpKeyState = DllStructCreate("byte[256]")
 	$aDllRet = DllCall("User32.dll", "int", "GetKeyboardState", "ptr", DllStructGetPtr($lpKeyState))
@@ -41,7 +45,7 @@ Func _WinAPI_GetKeyboardState($iFlag)	;Function by UEZ@autoitscript.com
 		EndSwitch
 	EndIf
 EndFunc
-
+#ce
 
 ; ------------------------------------------------------------------------------
 

@@ -6,6 +6,7 @@
 #		-	add a new spot title to the blacklist
 #ce	--------------------------------------------------------------------------
 
+#include <File.au3>
 
 func _readDataFile($fName)
 	if FileExists($fName) Then

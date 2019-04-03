@@ -1,21 +1,21 @@
 #cs
 
-   Spotify AdMuter v0.3
-   The software is licensed under GNU GPL 2.0: https://github.com/ElSnoopo/stf-admuter/blob/master/LICENSE
+  Spotify AdMuter v0.3
+  The software is licensed under GNU GPL 2.0: https://github.com/ElSnoopo/stf-admuter/blob/master/LICENSE
 
 #ce
 
-; bibs --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+; includes ---------------------------------------------------------------------
 
 #include <Array.au3>
-#include <File.au3>
 #include <SendMessage.au3>
-#include <Misc.au3>
-#include "libs\FileOperations.au3"
-#include "libs\StfInteractions.au3"
+#include "libs\FileOps.au3"
+#include "libs\SpotifyActions.au3"
+#include "libs\MuterUtils.au3"
+#include "libs\GeneralUtils.au3"
 
 
-; hotkeys --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+; hotkeys ----------------------------------------------------------------------
 
 HotKeySet("!{a}", "_addTitle")																									; Alt-A (add)   -> blacklist currently played title
 HotKeySet("!{p}", "_scriptPause")																								; Alt-P (pause)	-> pause script
@@ -37,7 +37,7 @@ Global 	$running = True, _																											; initialize running variab
 
 Global	$dataFile = "werbetitel_0-3.txt", _																			; data file name ("blacklist.txt")
 				$versionFile = "lastversion_0-3.txt", _																	; version mode cache, may or may not be integrated into the blacklist later on
-				$appName																																; Spotify window name for title catching
+				$appClass																																; Spotify window name for title catching
 
 Global 	$spotifyVersion																													; initialize version mode variable, used multiple times in the script
 
@@ -46,7 +46,8 @@ Global 	$spotifyVersion																													; initialize version mode va
 
 if UBound(ProcessList("com.livestricker.spotifyadmuter.exe")) < 3 Then					; check if AdMuter is already running
 	_main()																																				; if not, start main function
-	;MsgBox( "", $ScriptName, "Instanzen: " & UBound(ProcessList("com.livestricker.spotifyadmuter.exe")))			; debug message that lists the number of currently running AdMuter instances - did not work as expected
+	;MsgBox( "", $ScriptName, "Instanzen: " & _ 																	; debug message that lists the number of currently running AdMuter instances - did not work as expected
+	; UBound(ProcessList("com.livestricker.spotifyadmuter.exe")))
 Else
 	MsgBox( "" , $ScriptName, "Anwendung läuft bereits!", 5)											; if it's already running, remind the user (MsgBox flag 5: okay button)
 	;MsgBox( "", $ScriptName, "Instanzen: " & UBound(ProcessList("com.livestricker.spotifyadmuter.exe")))
@@ -60,20 +61,26 @@ func _main()
 			$newTitle, _
 			$spotifyVersion, _																												; local version number cache
 			$versionString, _																													; version string cache
-			$muted = False																														; default: volume is up
+			$muted = False, _																													; default: volume is up
+			$pollsPerSecond = 10, _																										; polling frequency - default: 10 Hz, can be reduced on slower devices
+			$defaultWindowName, _																											; variable for Spotify window name when paused
+			$waitTime
 
 	if $firstStart Then																														; first start operations,
 		_readDataFile($dataFile)																										; put contents of blacklist.txt into a local array - a closed file can't be corrupted as easily
 		$spotifyVersion = _readVersionFile($versionFile)														; get last used version mode (int value, used in the script)
 
-		if $spotifyVersion = 1 Then																									; set the appName variable depending on the version mode
-			$appName = [CLASS:Chrome_WidgetWin_0]																			; Spotify 1.0 is basically just a Chromium wrapper
+		if $spotifyVersion = 1 Then																									; set the appClass variable depending on the version mode
+			$appClass = [CLASS:Chrome_WidgetWin_0]																			; Spotify 1.0 is basically just a Chromium wrapper
+			$defaultWindowName = "Spotify Free"
 		else if $spotifyVersion = 0 Then
-				$appName = [CLASS:SpotifyMainWindow]																		; Spotify 0.9 was an independent application with Chromium integrated for everything beside the sidebars
+				$appClass = [CLASS:SpotifyMainWindow]																		; Spotify 0.9 was an independent application with Chromium integrated for everything beside the sidebars
+				$defaultWindowName = "Spotify"
 			EndIf
 		EndIf
 
 		$versionString = _getVersionString($spotifyVersion)													; convert int value to displayable text (used in tray tips and msgboxes)
+		$waitTime = trunc(1000/$pollsPerSecond)
 
 		TrayTip($scriptName & " gestartet", "" & _																	; initial tray tip with basic information, uses native Win 10 notifications
 		 "Alt-H drücken, um eine Übersicht der Hotkeys zu öffnen" & @crlf & _
@@ -87,35 +94,35 @@ func _main()
 	EndIf
 
 	while 1																																		; actual main loop
-		sleep(100)																																	; polling frequency, massive influence on system load! set to 200 or even 500 on slower systems (e.g. old Intel Atoms)
+		sleep($waitTime)																														; polling frequency, massive influence on system load! set to 200 or even 500 on slower systems (e.g. old Intel Atoms)
 		if $running then																														; script paused?
-			$newTitle = _getUnifiedTitle($appName)																		; get new title (still uses outdated unified title function that was implemented due to my stupidity)
-			if (($spotifyVersion = 1) and ($newTitle <> "spotify")) then _						; adds "spotify" to the title when Spotify 1.0 mode is used to ensure cross-compatibility - possibly unnecessary
-			 $newTitle = "spotify" + $newTitle
+			$newTitle = WinGetTitle($appClass)																				; get new title
+			if (($spotifyVersion = 1) and not ($newTitle == "Spotify")) then _				; adds "spotify" to the title when Spotify 1.0 mode is used to ensure cross-compatibility - possibly unnecessary
+			 $newTitle = "Spotify" + $newTitle
 			;TrayTip("","Neue Runde", 1)																							; debug tray tip
 			if ($newTitle <> $winTitle) Then																					; is the new title the same as the one in the last loop?
 			;TrayTip("", "Neuer Titel", 2)
 			;_stringUnify($newTitle)
-			if $newTitle <> "spotify" Then																						; is the new title not just "Spotify"? (= music paused?)
-				if _adExists($newTitle) Then																						; is the new title already in the blacklist?
-					if not $muted Then																										; is Spotify not muted?
-						$winTitle = _mute()
-						TrayTip("", "Werbung gemutet", 1)
-						Sleep(100)
-						send("{ALTUP}")
+				if $newTitle <> "spotify" Then																						; is the new title not just "Spotify"? (= music paused?)
+					if _adExists($newTitle) Then																						; is the new title already in the blacklist?
+						if not $muted Then																										; is Spotify not muted?
+							$winTitle = $newTitle
+							_mute($appClass, $spotifyVersion, $winTitle, 1)
+							TrayTip("", "Werbung gemutet", 1)
+							Sleep($waitTime)
+						EndIf
+					Elseif $muted Then
+						$winTitle = _resumeState()
+						TrayTip("", "Lautstärke wieder hochgefahren", 1)
+						sleep($waitTime)
+						Send("{ALTUP}")
+					Else
+						;$muted = False
+						$winTitle = _getUnifiedTitle($appClass)
 					EndIf
-				Elseif $muted Then
-					$winTitle = _resumeState()
-					TrayTip("", "Lautstärke wieder hochgefahren", 1)
-					sleep(100)
-					Send("{ALTUP}")
-				Else
-					;$muted = False
-					$winTitle = _getUnifiedTitle($appName)
 				EndIf
 			EndIf
-		 EndIf
-	  EndIf
+		EndIf
 	WEnd
 EndFunc
 
@@ -167,7 +174,7 @@ EndFunc
 
 #cs
 func _debug()
-   MsgBox("", "", WinGetTitle($appName), 2)
+   MsgBox("", "", WinGetTitle($appClass), 2)
 EndFunc
 #ce
 

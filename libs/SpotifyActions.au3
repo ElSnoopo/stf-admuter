@@ -1,3 +1,5 @@
+; $aClass (string): application class handle, $sVersion (bool/integer): version mode
+; $wTitle (string): window title when function was called, $mute (bool/integer): mute or unmute
 func _mute($aClass, $sVersion, $wTitle, $mute)
 	local	$i = 0, _																																; running variable
 				$loopLimit, _																														; number of loops, depending on version mode
@@ -49,15 +51,15 @@ func _mute($aClass, $sVersion, $wTitle, $mute)
 EndFunc
 
 
-; -------------- legacy function, not used anymore -----------------------------
-#cs
+; ------------------------------------------------------------------------------
+
 func _getWindowTitle($spotifyWindow)
 	local $title
 
 	$title = WinGetTitle($spotifyWindow)
 
 EndFunc
-#ce
+
 
 ; -------------- legacy function, not used anymore -----------------------------
 #cs

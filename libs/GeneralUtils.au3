@@ -4,13 +4,13 @@
 #   - ByRef increase and decrease - why isn't it onboard?
 #ce ----------------------------------------------------------------------------
 
-func inc(ByRef $number)
+func inc(ByRef $number); integer $number to be increased
 	$number += 1
 EndFunc
 
 
 ; ------------------------------------------------------------------------------
 
-func dec(ByRef $number)
+func dec(ByRef $number); integer $number to be decreased
   $number -= 1
 EndFunc
